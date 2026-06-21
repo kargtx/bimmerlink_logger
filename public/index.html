@@ -34,9 +34,12 @@
     <section class="card history-card">
       <div class="section-header">
         <h2>Архив записей</h2>
-        <span id="historyCount"></span>
+        <div>
+          <button id="toggleHistory" type="button">Показать/скрыть</button>
+          <span id="historyCount"></span>
+        </div>
       </div>
-      <div id="historyList" class="history-list"></div>
+      <div id="historyList" class="history-list collapsed"></div>
     </section>
 
     <section class="card chart-card">
@@ -46,6 +49,9 @@
           <label><input type="radio" name="displayMode" value="together" checked /> Вместе</label>
           <label><input type="radio" name="displayMode" value="separate" /> Раздельно</label>
         </div>
+      </div>
+      <div class="zoom-controls">
+        <label>Масштаб по времени: <input id="timeScale" type="range" min="0.5" max="5" step="0.25" value="1" /></label>
       </div>
       <div id="metricControls" class="metric-controls"></div>
       <div id="chartArea"></div>

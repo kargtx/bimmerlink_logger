@@ -115,6 +115,10 @@ body {
   gap: 10px;
 }
 
+.history-list.collapsed {
+  display: none;
+}
+
 .history-item {
   display: flex;
   justify-content: space-between;
@@ -169,12 +173,18 @@ body {
 #chartArea {
   display: grid;
   gap: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chart-wrapper {
   background: rgba(15, 18, 32, 0.96);
   border-radius: 18px;
   padding: 14px;
+}
+
+.chart-wrapper canvas {
+  display: block;
 }
 
 .max-values {

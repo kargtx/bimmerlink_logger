@@ -6,6 +6,9 @@ const metricControls = document.getElementById('metricControls');
 const chartArea = document.getElementById('chartArea');
 const maxValuesContainer = document.getElementById('maxValues');
 const displayModeInputs = document.getElementsByName('displayMode');
+const toggleHistoryBtn = document.getElementById('toggleHistory');
+const historyListEl = document.getElementById('historyList');
+const timeScaleInput = document.getElementById('timeScale');
 
 let sessions = [];
 let currentSession = null;
@@ -35,9 +38,13 @@ function renderHistory() {
         <strong>${session.name}</strong>
         <div class="muted-text">${session.filename} · ${new Date(session.createdAt).toLocaleString()}</div>
       </div>
-      <button type="button">Открыть</button>
+      <div>
+        <button type="button" class="open-btn">Открыть</button>
+        <button type="button" class="delete-btn">Удалить</button>
+      </div>
     `;
-    item.querySelector('button').addEventListener('click', () => loadSession(session.id));
+    item.querySelector('.open-btn').addEventListener('click', () => loadSession(session.id));
+    item.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
     historyList.appendChild(item);
   });
 }
@@ -79,6 +86,26 @@ async function loadSession(sessionId) {
   createCharts();
 }
 
+async function deleteSession(sessionId) {
+  if (!confirm('Вы уверены, что хотите удалить эту запись?')) return;
+  try {
+    const res = await fetch(`/api/session/${sessionId}`, { method: 'DELETE' });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Ошибка удаления');
+    setMessage('Запись удалена.');
+    await fetchSessions();
+    // if current session deleted, clear view
+    if (currentSession && currentSession.id === sessionId) {
+      currentSession = null;
+      renderMetricControls();
+      renderMaxValues();
+      createCharts();
+    }
+  } catch (err) {
+    setMessage(err.message, true);
+  }
+}
+
 function renderMetricControls() {
   if (!currentSession) {
     metricControls.innerHTML = '';
@@ -100,6 +127,11 @@ function renderMetricControls() {
   displayModeInputs.forEach((input) => {
     input.addEventListener('change', createCharts);
   });
+  // time scale control
+  if (timeScaleInput) {
+    timeScaleInput.removeEventListener('input', createCharts);
+    timeScaleInput.addEventListener('input', createCharts);
+  }
 }
 
 function renderMaxValues() {
@@ -150,6 +182,7 @@ function createCharts() {
 
   const labels = currentSession.data.map((row) => row[0]);
   const displayMode = getDisplayMode();
+  const timeScale = timeScaleInput ? Number(timeScaleInput.value) : 1;
 
   const palette = [
     '#60a5fa', '#fbbf24', '#34d399', '#f472b6', '#a78bfa', '#38bdf8', '#f59e0b', '#22c55e', '#fb7185'
@@ -161,7 +194,12 @@ function createCharts() {
     const canvas = document.createElement('canvas');
     canvasWrapper.appendChild(canvas);
     chartArea.appendChild(canvasWrapper);
-
+    // adjust canvas width according to time scale and data length
+    const basePerPoint = 6; // px per data point at scale=1
+    const targetWidth = Math.max(800, Math.round(labels.length * basePerPoint * timeScale));
+    canvas.width = targetWidth;
+    canvas.style.width = targetWidth + 'px';
+    // make chart not auto-resize so canvas width is respected
     const datasets = selected.map((columnIndex, index) => ({
       label: currentSession.columns[columnIndex],
       data: currentSession.data.map((row) => row[columnIndex]),
@@ -176,7 +214,7 @@ function createCharts() {
       type: 'line',
       data: { labels, datasets },
       options: {
-        responsive: true,
+        responsive: false,
         interaction: { mode: 'index', intersect: false },
         stacked: false,
         plugins: {
@@ -207,6 +245,12 @@ function createCharts() {
     wrapper.appendChild(canvas);
     chartArea.appendChild(wrapper);
 
+    // adjust canvas width per metric
+    const perPoint = 6;
+    const w = Math.max(700, Math.round(labels.length * perPoint * timeScale));
+    canvas.width = w;
+    canvas.style.width = w + 'px';
+
     const chart = new Chart(canvas, {
       type: 'line',
       data: {
@@ -222,7 +266,7 @@ function createCharts() {
         }]
       },
       options: {
-        responsive: true,
+        responsive: false,
         plugins: {
           legend: { display: false },
           tooltip: { mode: 'index', intersect: false }
@@ -235,6 +279,13 @@ function createCharts() {
     });
 
     chartInstances.push(chart);
+  });
+}
+
+// toggle archive visibility
+if (toggleHistoryBtn && historyListEl) {
+  toggleHistoryBtn.addEventListener('click', () => {
+    historyListEl.classList.toggle('collapsed');
   });
 }
 

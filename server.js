@@ -130,6 +130,20 @@ app.get('/api/session/:id', (req, res) => {
   });
 });
 
+// DELETE session by id
+app.delete('/api/session/:id', (req, res) => {
+  const sessionId = Number(req.params.id);
+  db.run('DELETE FROM sessions WHERE id = ?', [sessionId], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Запись не найдена.' });
+    }
+    res.json({ success: true, deletedId: sessionId });
+  });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
