@@ -9,6 +9,10 @@ const displayModeInputs = document.getElementsByName('displayMode');
 const toggleHistoryBtn = document.getElementById('toggleHistory');
 const historyListEl = document.getElementById('historyList');
 const timeScaleInput = document.getElementById('timeScale');
+const zoomOutBtn = document.getElementById('zoomOut');
+const zoomInBtn = document.getElementById('zoomIn');
+const zoomDisplay = document.getElementById('zoomDisplay');
+let timeScale = 1.0; // 1.0x by default
 
 let sessions = [];
 let currentSession = null;
@@ -127,11 +131,13 @@ function renderMetricControls() {
   displayModeInputs.forEach((input) => {
     input.addEventListener('change', createCharts);
   });
-  // time scale control
-  if (timeScaleInput) {
-    timeScaleInput.removeEventListener('input', createCharts);
-    timeScaleInput.addEventListener('input', createCharts);
-  }
+    // zoom buttons
+    if (zoomInBtn && zoomOutBtn && zoomDisplay) {
+      const updateDisplay = () => { zoomDisplay.textContent = timeScale.toFixed(2) + 'x'; };
+      zoomInBtn.addEventListener('click', () => { timeScale = Math.min(5, +(Math.round((timeScale + 0.25) * 100) / 100)); updateDisplay(); createCharts(); });
+      zoomOutBtn.addEventListener('click', () => { timeScale = Math.max(0.5, +(Math.round((timeScale - 0.25) * 100) / 100)); updateDisplay(); createCharts(); });
+      updateDisplay();
+    }
 }
 
 function renderMaxValues() {
@@ -182,7 +188,7 @@ function createCharts() {
 
   const labels = currentSession.data.map((row) => row[0]);
   const displayMode = getDisplayMode();
-  const timeScale = timeScaleInput ? Number(timeScaleInput.value) : 1;
+    // use global timeScale variable (set by +/- buttons)
 
   const palette = [
     '#60a5fa', '#fbbf24', '#34d399', '#f472b6', '#a78bfa', '#38bdf8', '#f59e0b', '#22c55e', '#fb7185'
@@ -194,12 +200,16 @@ function createCharts() {
     const canvas = document.createElement('canvas');
     canvasWrapper.appendChild(canvas);
     chartArea.appendChild(canvasWrapper);
-    // adjust canvas width according to time scale and data length
+      // adjust canvas width according to time scale and data length; keep height fixed
     const basePerPoint = 6; // px per data point at scale=1
     const targetWidth = Math.max(800, Math.round(labels.length * basePerPoint * timeScale));
     canvas.width = targetWidth;
     canvas.style.width = targetWidth + 'px';
-    // make chart not auto-resize so canvas width is respected
+      // enforce fixed pixel height so chart doesn't stretch vertically
+      const fixedHeight = 320;
+      canvas.height = fixedHeight;
+      canvas.style.height = fixedHeight + 'px';
+      // make chart not auto-resize so canvas width/height are respected
     const datasets = selected.map((columnIndex, index) => ({
       label: currentSession.columns[columnIndex],
       data: currentSession.data.map((row) => row[columnIndex]),
@@ -250,6 +260,9 @@ function createCharts() {
     const w = Math.max(700, Math.round(labels.length * perPoint * timeScale));
     canvas.width = w;
     canvas.style.width = w + 'px';
+      const fixedHeight = 320;
+      canvas.height = fixedHeight;
+      canvas.style.height = fixedHeight + 'px';
 
     const chart = new Chart(canvas, {
       type: 'line',

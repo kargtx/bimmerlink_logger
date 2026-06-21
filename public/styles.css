@@ -187,6 +187,38 @@ body {
   display: block;
 }
 
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.zoom-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,0.12);
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  font-size: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#zoomDisplay {
+  min-width: 56px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Fix canvas height so scaling only affects width */
+.chart-wrapper canvas {
+  height: 320px;
+  max-height: 420px;
+}
+
 .max-values {
   margin-top: 18px;
   display: grid;
