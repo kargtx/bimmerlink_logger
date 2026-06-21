@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Bimmerlink Logger</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <div>
+        <h1>Bimmerlink Logger</h1>
+        <p>Загрузите лог-файл CSV, посмотрите графики и максимальные значения.</p>
+      </div>
+    </header>
+
+    <section class="card upload-card">
+      <form id="uploadForm" class="upload-form">
+        <label>
+          Имя записи
+          <input type="text" name="name" id="sessionName" placeholder="Например, поездка на трассе" required />
+        </label>
+        <label>
+          Выберите CSV лог
+          <input type="file" name="logfile" id="logFile" accept=".csv,text/csv" required />
+        </label>
+        <button type="submit">Загрузить в историю</button>
+      </form>
+      <div id="uploadMessage" class="message"></div>
+    </section>
+
+    <section class="card history-card">
+      <div class="section-header">
+        <h2>Архив записей</h2>
+        <span id="historyCount"></span>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+    <section class="card chart-card">
+      <div class="section-header">
+        <h2>График</h2>
+        <div class="toggle-row">
+          <label><input type="radio" name="displayMode" value="together" checked /> Вместе</label>
+          <label><input type="radio" name="displayMode" value="separate" /> Раздельно</label>
+        </div>
+      </div>
+      <div id="metricControls" class="metric-controls"></div>
+      <div id="chartArea"></div>
+      <div id="maxValues" class="max-values"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
