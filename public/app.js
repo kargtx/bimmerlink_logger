@@ -18,6 +18,13 @@ let sessions = [];
 let currentSession = null;
 let chartInstances = [];
 
+function addChartFilename(wrapper) {
+  const filename = document.createElement('div');
+  filename.className = 'chart-filename';
+  filename.textContent = currentSession.filename;
+  wrapper.appendChild(filename);
+}
+
 async function fetchSessions() {
   const response = await fetch('/api/sessions');
   const json = await response.json();
@@ -197,6 +204,7 @@ function createCharts() {
   if (displayMode === 'together') {
     const canvasWrapper = document.createElement('div');
     canvasWrapper.className = 'chart-wrapper';
+    addChartFilename(canvasWrapper);
     const canvas = document.createElement('canvas');
     canvasWrapper.appendChild(canvas);
     chartArea.appendChild(canvasWrapper);
@@ -245,6 +253,7 @@ function createCharts() {
   selected.forEach((columnIndex, index) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'chart-wrapper';
+    addChartFilename(wrapper);
     const title = document.createElement('h3');
     title.textContent = currentSession.columns[columnIndex];
     title.style.margin = '0 0 10px';
