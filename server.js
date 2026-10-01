@@ -74,15 +74,20 @@ app.get('/api/sessions', (req, res) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    const sessions = rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      folder: row.folder || '',
-      filename: row.filename,
-      createdAt: row.created_at,
-      columns: JSON.parse(row.columns_json),
-      maxValues: JSON.parse(row.max_json)
-    }));
+    const sessions = rows.map((row) => {
+      let cols = [], maxs = [];
+      try { cols = JSON.parse(row.columns_json); } catch(e) {}
+      try { maxs = JSON.parse(row.max_json); } catch(e) {}
+      return {
+        id: row.id,
+        name: row.name,
+        folder: row.folder || '',
+        filename: row.filename,
+        createdAt: row.created_at,
+        columns: cols,
+        maxValues: maxs
+      };
+    });
     res.json({ sessions });
   });
 });
@@ -125,15 +130,19 @@ app.get('/api/session/:id', (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Запись не найдена.' });
     }
+    let cols = [], maxs = [], dat = [];
+    try { cols = JSON.parse(row.columns_json); } catch(e) {}
+    try { maxs = JSON.parse(row.max_json); } catch(e) {}
+    try { dat = JSON.parse(row.data_json); } catch(e) {}
     res.json({
       id: row.id,
       name: row.name,
       folder: row.folder || '',
       filename: row.filename,
       createdAt: row.created_at,
-      columns: JSON.parse(row.columns_json),
-      maxValues: JSON.parse(row.max_json),
-      data: JSON.parse(row.data_json)
+      columns: cols,
+      maxValues: maxs,
+      data: dat
     });
   });
 });

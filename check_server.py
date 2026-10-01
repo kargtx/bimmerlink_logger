@@ -9,10 +9,10 @@ ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 try:
     print("Connecting...")
-    ssh.connect(host, username=user, password=password, timeout=5, banner_timeout=5)
+    ssh.connect(host, username=user, password=password)
     print("Connected!")
     
-    stdin, stdout, stderr = ssh.exec_command("find ~ -name bimmerlink_logger -type d 2>/dev/null", timeout=5)
+    stdin, stdout, stderr = ssh.exec_command("find ~ -name bimmerlink_logger -type d 2>/dev/null")
     dirs = stdout.read().decode().strip().split('\n')
     print("Dirs:", dirs)
     
