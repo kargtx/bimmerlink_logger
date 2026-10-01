@@ -26,10 +26,19 @@ function addChartFilename(wrapper) {
 }
 
 async function fetchSessions() {
-  const response = await fetch('/api/sessions');
-  const json = await response.json();
-  sessions = json.sessions;
-  renderHistory();
+  try {
+    const response = await fetch('/api/sessions');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Server returned error:', text);
+      return;
+    }
+    const json = await response.json();
+    sessions = json.sessions || [];
+    renderHistory();
+  } catch (err) {
+    console.error('Failed to fetch sessions:', err);
+  }
 }
 
 function renderHistory() {
@@ -139,8 +148,24 @@ uploadForm.addEventListener('submit', async (event) => {
 });
 
 async function loadSession(sessionId) {
-  const response = await fetch(`/api/session/${sessionId}`);
-  if (!response.ok) {
+  try {
+    const response = await fetch(`/api/session/${sessionId}`);
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Session error text:', text);
+      setMessage('Не удалось загрузить запись.', true);
+      return;
+    }
+    currentSession = await response.json();
+    const presetsSection = document.getElementById('presetsSection');
+    if (presetsSection) presetsSection.style.display = 'block';
+    renderMetricControls();
+    renderMaxValues();
+    createCharts();
+  } catch (err) {
+    setMessage('Ошибка загрузки: ' + err.message, true);
+  }
+}
     setMessage('Не удалось загрузить запись.', true);
     return;
   }
