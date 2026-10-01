@@ -8,23 +8,165 @@ const maxValuesContainer = document.getElementById('maxValues');
 const displayModeInputs = document.getElementsByName('displayMode');
 const toggleHistoryBtn = document.getElementById('toggleHistory');
 const historyListEl = document.getElementById('historyList');
-const timeScaleInput = document.getElementById('timeScale');
 const zoomOutBtn = document.getElementById('zoomOut');
 const zoomInBtn = document.getElementById('zoomIn');
 const zoomDisplay = document.getElementById('zoomDisplay');
-let timeScale = 1.0; // 1.0x by default
+const presetsRow = document.getElementById('presetsRow');
+const presetStatusHint = document.getElementById('presetStatusHint');
 
+let timeScale = 1.0;
 let sessions = [];
 let currentSession = null;
 let chartInstances = [];
+let activePresetIndex = null;
+
+function setMessage(text, isError = false) {
+  if (!uploadMessage) return;
+  uploadMessage.textContent = text;
+  uploadMessage.style.color = isError ? '#f87171' : '#38bdf8';
+}
+
+function showPresetHint(text, type = 'normal') {
+  if (!presetStatusHint) return;
+  presetStatusHint.textContent = text;
+  presetStatusHint.className = 'presets-hint';
+  if (type === 'success') presetStatusHint.classList.add('success');
+  else if (type === 'warning' || type === 'error') presetStatusHint.classList.add('warning');
+}
 
 function addChartFilename(wrapper) {
+  if (!currentSession) return;
   const filename = document.createElement('div');
   filename.className = 'chart-filename';
   filename.textContent = currentSession.filename;
   wrapper.appendChild(filename);
 }
 
+// ----------------- PRESETS (5 SLOTS) -----------------
+function getPresets() {
+  try {
+    return JSON.parse(localStorage.getItem('bimmerlink_presets') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function savePresets(presets) {
+  localStorage.setItem('bimmerlink_presets', JSON.stringify(presets));
+}
+
+function renderPresets() {
+  if (!presetsRow) return;
+  presetsRow.innerHTML = '';
+  const presets = getPresets();
+
+  for (let i = 1; i <= 5; i++) {
+    const saved = presets[i];
+    const hasData = Array.isArray(saved) && saved.length > 0;
+
+    const pill = document.createElement('div');
+    pill.className = 'preset-pill' + (activePresetIndex === i ? ' active' : '');
+
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'preset-apply-btn';
+    applyBtn.innerHTML = `Пресет ${i}${hasData ? ` <span class="preset-badge">${saved.length}</span>` : ''}`;
+    applyBtn.title = hasData ? `Применить: ${saved.join(', ')}` : 'Пресет пуст. Выберите параметры и нажмите 💾';
+    applyBtn.addEventListener('click', () => applyPreset(i));
+    pill.appendChild(applyBtn);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'preset-save-btn';
+    saveBtn.textContent = '💾';
+    saveBtn.title = `Сохранить текущие выбранные параметры в Пресет ${i}`;
+    saveBtn.addEventListener('click', () => savePreset(i));
+    pill.appendChild(saveBtn);
+
+    if (hasData) {
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'preset-clear-btn';
+      clearBtn.textContent = '×';
+      clearBtn.title = `Очистить Пресет ${i}`;
+      clearBtn.addEventListener('click', (e) => clearPreset(i, e));
+      pill.appendChild(clearBtn);
+    }
+
+    presetsRow.appendChild(pill);
+  }
+}
+
+function applyPreset(index) {
+  if (!currentSession) {
+    showPresetHint('Сначала откройте запись из архива.', 'warning');
+    return;
+  }
+  const presets = getPresets();
+  const savedNames = presets[index];
+  if (!savedNames || !savedNames.length) {
+    showPresetHint(`Пресет ${index} пуст. Отметьте нужные параметры галочками и нажмите 💾`, 'warning');
+    return;
+  }
+
+  const checkboxes = metricControls.querySelectorAll('input[type="checkbox"]');
+  let matched = 0;
+  checkboxes.forEach((cb) => {
+    const colIndex = Number(cb.value);
+    const colName = currentSession.columns[colIndex];
+    if (savedNames.includes(colName)) {
+      cb.checked = true;
+      matched++;
+    } else {
+      cb.checked = false;
+    }
+  });
+
+  activePresetIndex = index;
+  renderPresets();
+  createCharts();
+
+  if (matched === 0) {
+    showPresetHint(`В текущем логе нет параметров из Пресета ${index}.`, 'warning');
+  } else {
+    showPresetHint(`Применен Пресет ${index}: выбрано ${matched} из ${savedNames.length} пар.`, 'success');
+  }
+}
+
+function savePreset(index) {
+  if (!currentSession) {
+    showPresetHint('Сначала откройте запись из архива.', 'warning');
+    return;
+  }
+  const checkedBoxes = Array.from(metricControls.querySelectorAll('input[type="checkbox"]:checked'));
+  if (checkedBoxes.length === 0) {
+    showPresetHint('Выберите хотя бы один параметр галочкой.', 'warning');
+    return;
+  }
+
+  const selectedNames = checkedBoxes.map((cb) => currentSession.columns[Number(cb.value)]);
+  const presets = getPresets();
+  presets[index] = selectedNames;
+  savePresets(presets);
+
+  activePresetIndex = index;
+  renderPresets();
+  showPresetHint(`✅ Сохранено в Пресет ${index} (${selectedNames.length} параметров)`, 'success');
+}
+
+function clearPreset(index, e) {
+  if (e) e.stopPropagation();
+  const presets = getPresets();
+  if (presets[index]) {
+    delete presets[index];
+    savePresets(presets);
+    if (activePresetIndex === index) activePresetIndex = null;
+    renderPresets();
+    showPresetHint(`Пресет ${index} очищен.`);
+  }
+}
+
+// ----------------- SESSIONS & ARCHIVE -----------------
 async function fetchSessions() {
   try {
     const response = await fetch('/api/sessions');
@@ -50,131 +192,69 @@ function renderHistory() {
     return;
   }
 
-  const datalist = document.getElementById('folderSuggestions');
-  if (datalist) {
-    const uniqueFolders = [...new Set(sessions.map(s => s.folder).filter(f => f))];
-    datalist.innerHTML = uniqueFolders.map(f => `<option value="${f}">`).join('');
-  }
-
-  const folders = {};
-  sessions.forEach(session => {
-    const f = session.folder || 'Без папки';
-    if (!folders[f]) folders[f] = [];
-    folders[f].push(session);
-  });
-
-  Object.keys(folders).sort().forEach(fName => {
-    const folderGroup = document.createElement('div');
-    folderGroup.className = 'folder-group';
-    
-    const header = document.createElement('div');
-    header.className = 'folder-header';
-    header.innerHTML = `<span>📂 ${fName} (${folders[fName].length})</span> <span class="folder-toggle">▼</span>`;
-    
-    const itemsContainer = document.createElement('div');
-    itemsContainer.className = 'folder-items';
-    
-    header.addEventListener('click', () => {
-      itemsContainer.classList.toggle('collapsed');
-      header.querySelector('.folder-toggle').textContent = itemsContainer.classList.contains('collapsed') ? '▶' : '▼';
-    });
-
-    folders[fName].forEach(session => {
-      const item = document.createElement('div');
-      item.className = 'history-item';
-      item.innerHTML = `
-        <div>
-          <strong>${session.name}</strong>
-          <div class="muted-text">${session.filename} · ${new Date(session.createdAt).toLocaleString()}</div>
-        </div>
-        <div>
-          <button type="button" class="open-btn">Открыть</button>
-          <button type="button" class="move-btn" title="Переместить в папку">📁</button>
-          <button type="button" class="delete-btn">Удалить</button>
-        </div>
-      `;
-      item.querySelector('.open-btn').addEventListener('click', () => loadSession(session.id));
-      item.querySelector('.move-btn').addEventListener('click', () => moveSession(session.id, session.folder));
-      item.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
-      itemsContainer.appendChild(item);
-    });
-    
-    folderGroup.appendChild(header);
-    folderGroup.appendChild(itemsContainer);
-    historyList.appendChild(folderGroup);
+  sessions.forEach((session) => {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    item.innerHTML = `
+      <div>
+        <strong>${session.name}</strong>
+        <div class="muted-text">${session.filename} · ${new Date(session.createdAt).toLocaleString()}</div>
+      </div>
+      <div>
+        <button type="button" class="open-btn">Открыть</button>
+        <button type="button" class="delete-btn">Удалить</button>
+      </div>
+    `;
+    item.querySelector('.open-btn').addEventListener('click', () => loadSession(session.id));
+    item.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
+    historyList.appendChild(item);
   });
 }
 
-async function moveSession(sessionId, currentFolder) {
-  const newFolder = prompt('Введите имя папки (оставьте пустым для "Без папки"):', currentFolder || '');
-  if (newFolder === null) return;
-  try {
-    const res = await fetch(`/api/session/${sessionId}/folder`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder: newFolder })
-    });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.error || 'Ошибка перемещения');
-    await fetchSessions();
-  } catch (err) {
-    setMessage(err.message, true);
-  }
-}
-
-function setMessage(text, isError = false) {
-  uploadMessage.textContent = text;
-  uploadMessage.style.color = isError ? '#f87171' : '#a5f3fc';
-}
-
-uploadForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const formData = new FormData(uploadForm);
-  setMessage('Загрузка...');
-
-  try {
-    const response = await fetch('/api/upload', { method: 'POST', body: formData });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error || 'Ошибка загрузки');
+// ----------------- UPLOAD -----------------
+if (uploadForm) {
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setMessage('');
+    const formData = new FormData(uploadForm);
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Ошибка загрузки файла.');
+      }
+      setMessage('Файл сохранен в истории.');
+      uploadForm.reset();
+      await fetchSessions();
+      await loadSession(result.id);
+    } catch (error) {
+      setMessage(error.message, true);
     }
-    setMessage('Файл сохранен в истории.');
-    uploadForm.reset();
-    await fetchSessions();
-    await loadSession(result.id);
-  } catch (error) {
-    setMessage(error.message, true);
-  }
-});
+  });
+}
 
+// ----------------- LOAD & DELETE SESSION -----------------
 async function loadSession(sessionId) {
   try {
     const response = await fetch(`/api/session/${sessionId}`);
     if (!response.ok) {
-      const text = await response.text();
-      console.error('Session error text:', text);
       setMessage('Не удалось загрузить запись.', true);
       return;
     }
     currentSession = await response.json();
-    const presetsSection = document.getElementById('presetsSection');
-    if (presetsSection) presetsSection.style.display = 'block';
+    activePresetIndex = null;
     renderMetricControls();
     renderMaxValues();
+    renderPresets();
     createCharts();
+    showPresetHint('Лог открыт. Выберите параметры или примените пресет.');
   } catch (err) {
-    setMessage('Ошибка загрузки: ' + err.message, true);
+    console.error('Error loading session:', err);
+    setMessage('Ошибка загрузки записи.', true);
   }
-}
-    setMessage('Не удалось загрузить запись.', true);
-    return;
-  }
-  currentSession = await response.json();
-  const presetsSection = document.getElementById('presetsSection');
-  if (presetsSection) presetsSection.style.display = 'block';
-  renderMetricControls();
-  renderMaxValues();
-  createCharts();
 }
 
 async function deleteSession(sessionId) {
@@ -185,13 +265,12 @@ async function deleteSession(sessionId) {
     if (!res.ok) throw new Error(j.error || 'Ошибка удаления');
     setMessage('Запись удалена.');
     await fetchSessions();
-    // if current session deleted, clear view
     if (currentSession && currentSession.id === sessionId) {
       currentSession = null;
-      const presetsSection = document.getElementById('presetsSection');
-      if (presetsSection) presetsSection.style.display = 'none';
+      activePresetIndex = null;
       renderMetricControls();
       renderMaxValues();
+      renderPresets();
       createCharts();
     }
   } catch (err) {
@@ -199,6 +278,7 @@ async function deleteSession(sessionId) {
   }
 }
 
+// ----------------- METRICS & CHARTS -----------------
 function renderMetricControls() {
   if (!currentSession) {
     metricControls.innerHTML = '';
@@ -208,25 +288,18 @@ function renderMetricControls() {
   const columns = currentSession.columns.slice(1);
   metricControls.innerHTML = columns.map((name, index) => `
     <label>
-      <input type="checkbox" value="${index + 1}" data-name="${name.replace(/"/g, '&quot;')}" ${index < 2 ? 'checked' : ''} />
+      <input type="checkbox" value="${index + 1}" ${index < 2 ? 'checked' : ''} />
       ${name}
     </label>
   `).join('');
 
   metricControls.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
-    checkbox.addEventListener('change', createCharts);
+    checkbox.addEventListener('change', () => {
+      activePresetIndex = null;
+      renderPresets();
+      createCharts();
+    });
   });
-
-  displayModeInputs.forEach((input) => {
-    input.addEventListener('change', createCharts);
-  });
-    // zoom buttons
-    if (zoomInBtn && zoomOutBtn && zoomDisplay) {
-      const updateDisplay = () => { zoomDisplay.textContent = timeScale.toFixed(2) + 'x'; };
-      zoomInBtn.addEventListener('click', () => { timeScale = Math.min(5, +(Math.round((timeScale + 0.25) * 100) / 100)); updateDisplay(); createCharts(); });
-      zoomOutBtn.addEventListener('click', () => { timeScale = Math.max(0.5, +(Math.round((timeScale - 0.25) * 100) / 100)); updateDisplay(); createCharts(); });
-      updateDisplay();
-    }
 }
 
 function renderMaxValues() {
@@ -249,9 +322,7 @@ function renderMaxValues() {
 }
 
 function getSelectedMetrics() {
-  if (!currentSession) {
-    return [];
-  }
+  if (!currentSession) return [];
   return Array.from(metricControls.querySelectorAll('input[type="checkbox"]:checked')).map((input) => Number(input.value));
 }
 
@@ -277,7 +348,6 @@ function createCharts() {
 
   const labels = currentSession.data.map((row) => row[0]);
   const displayMode = getDisplayMode();
-    // use global timeScale variable (set by +/- buttons)
 
   const palette = [
     '#60a5fa', '#fbbf24', '#34d399', '#f472b6', '#a78bfa', '#38bdf8', '#f59e0b', '#22c55e', '#fb7185'
@@ -290,16 +360,15 @@ function createCharts() {
     const canvas = document.createElement('canvas');
     canvasWrapper.appendChild(canvas);
     chartArea.appendChild(canvasWrapper);
-      // adjust canvas width according to time scale and data length; keep height fixed
-    const basePerPoint = 6; // px per data point at scale=1
+
+    const basePerPoint = 6;
     const targetWidth = Math.max(800, Math.round(labels.length * basePerPoint * timeScale));
     canvas.width = targetWidth;
     canvas.style.width = targetWidth + 'px';
-      // enforce fixed pixel height so chart doesn't stretch vertically
-      const fixedHeight = 320;
-      canvas.height = fixedHeight;
-      canvas.style.height = fixedHeight + 'px';
-      // make chart not auto-resize so canvas width/height are respected
+    const fixedHeight = 320;
+    canvas.height = fixedHeight;
+    canvas.style.height = fixedHeight + 'px';
+
     const datasets = selected.map((columnIndex, index) => ({
       label: currentSession.columns[columnIndex],
       data: currentSession.data.map((row) => row[columnIndex]),
@@ -346,14 +415,13 @@ function createCharts() {
     wrapper.appendChild(canvas);
     chartArea.appendChild(wrapper);
 
-    // adjust canvas width per metric
     const perPoint = 6;
     const w = Math.max(700, Math.round(labels.length * perPoint * timeScale));
     canvas.width = w;
     canvas.style.width = w + 'px';
-      const fixedHeight = 320;
-      canvas.height = fixedHeight;
-      canvas.style.height = fixedHeight + 'px';
+    const fixedHeight = 320;
+    canvas.height = fixedHeight;
+    canvas.style.height = fixedHeight + 'px';
 
     const chart = new Chart(canvas, {
       type: 'line',
@@ -386,95 +454,32 @@ function createCharts() {
   });
 }
 
-// toggle archive visibility
+// ----------------- LISTENERS -----------------
+displayModeInputs.forEach((input) => {
+  input.addEventListener('change', createCharts);
+});
+
+if (zoomInBtn && zoomOutBtn && zoomDisplay) {
+  const updateDisplay = () => { zoomDisplay.textContent = timeScale.toFixed(2) + 'x'; };
+  zoomInBtn.addEventListener('click', () => {
+    timeScale = Math.min(5, +(Math.round((timeScale + 0.25) * 100) / 100));
+    updateDisplay();
+    createCharts();
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    timeScale = Math.max(0.5, +(Math.round((timeScale - 0.25) * 100) / 100));
+    updateDisplay();
+    createCharts();
+  });
+  updateDisplay();
+}
+
 if (toggleHistoryBtn && historyListEl) {
   toggleHistoryBtn.addEventListener('click', () => {
     historyListEl.classList.toggle('collapsed');
   });
 }
 
-function initPresets() {
-  const applyBtns = document.querySelectorAll('.preset-apply');
-  const saveBtns = document.querySelectorAll('.preset-save');
-  
-  applyBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const index = btn.dataset.index;
-      applyPreset(index);
-    });
-  });
-  
-  saveBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const index = btn.dataset.index;
-      savePreset(index);
-    });
-  });
-  
-  updatePresetButtons();
-}
-
-function getPresets() {
-  try {
-    return JSON.parse(localStorage.getItem('bimmerlink_presets')) || [[], [], [], [], []];
-  } catch (e) {
-    return [[], [], [], [], []];
-  }
-}
-
-function savePresets(presets) {
-  localStorage.setItem('bimmerlink_presets', JSON.stringify(presets));
-}
-
-function updatePresetButtons() {
-  const presets = getPresets();
-  const applyBtns = document.querySelectorAll('.preset-apply');
-  applyBtns.forEach((btn, index) => {
-    if (presets[index] && presets[index].length > 0) {
-      btn.textContent = `Пресет ${Number(index) + 1} (${presets[index].length})`;
-      btn.style.color = 'var(--accent-2)';
-    } else {
-      btn.textContent = `Пресет ${Number(index) + 1} (пусто)`;
-      btn.style.color = 'var(--text)';
-    }
-  });
-}
-
-function savePreset(index) {
-  if (!currentSession) return;
-  const checkboxes = Array.from(metricControls.querySelectorAll('input[type="checkbox"]:checked'));
-  const selectedNames = checkboxes.map(cb => cb.dataset.name);
-  if (selectedNames.length === 0) {
-    alert('Выберите хотя бы один параметр для сохранения в пресет.');
-    return;
-  }
-  const presets = getPresets();
-  presets[index] = selectedNames;
-  savePresets(presets);
-  updatePresetButtons();
-}
-
-function applyPreset(index) {
-  if (!currentSession) return;
-  const presets = getPresets();
-  const savedNames = presets[index] || [];
-  if (savedNames.length === 0) {
-    alert('Этот пресет пуст. Сначала сохраните в него параметры.');
-    return;
-  }
-  
-  const checkboxes = Array.from(metricControls.querySelectorAll('input[type="checkbox"]'));
-  let matchedAny = false;
-  checkboxes.forEach(cb => {
-    cb.checked = savedNames.includes(cb.dataset.name);
-    if (cb.checked) matchedAny = true;
-  });
-  
-  if (!matchedAny) {
-    alert('Ни один из параметров пресета не найден в этом логе.');
-  }
-  createCharts();
-}
-
-initPresets();
+// Initial setup
+renderPresets();
 fetchSessions();

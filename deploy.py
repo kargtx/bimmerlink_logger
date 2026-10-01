@@ -2,6 +2,9 @@ import paramiko
 import os
 import sys
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 host = "130.193.57.162"
 user = "kargtx"
 password = "password"

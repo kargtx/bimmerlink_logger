@@ -25,17 +25,12 @@ db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    folder TEXT DEFAULT '',
     filename TEXT NOT NULL,
     created_at TEXT NOT NULL,
     columns_json TEXT NOT NULL,
     max_json TEXT NOT NULL,
     data_json TEXT NOT NULL
-  )`, () => {
-    db.run(`ALTER TABLE sessions ADD COLUMN folder TEXT DEFAULT ''`, (err) => {
-      // Ignore error if column already exists
-    });
-  });
+  )`);
 });
 
 function parseCsv(csvText) {
@@ -70,18 +65,19 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/sessions', (req, res) => {
-  db.all('SELECT id, name, folder, filename, created_at, columns_json, max_json FROM sessions ORDER BY created_at DESC', [], (err, rows) => {
+  db.all('SELECT id, name, filename, created_at, columns_json, max_json FROM sessions ORDER BY created_at DESC', [], (err, rows) => {
     if (err) {
+      console.error('Error fetching sessions:', err);
       return res.status(500).json({ error: err.message });
     }
     const sessions = rows.map((row) => {
-      let cols = [], maxs = [];
-      try { cols = JSON.parse(row.columns_json); } catch(e) {}
-      try { maxs = JSON.parse(row.max_json); } catch(e) {}
+      let cols = [];
+      let maxs = [];
+      try { cols = JSON.parse(row.columns_json); } catch (e) { cols = []; }
+      try { maxs = JSON.parse(row.max_json); } catch (e) { maxs = []; }
       return {
         id: row.id,
         name: row.name,
-        folder: row.folder || '',
         filename: row.filename,
         createdAt: row.created_at,
         columns: cols,
@@ -94,7 +90,6 @@ app.get('/api/sessions', (req, res) => {
 
 app.post('/api/upload', upload.single('logfile'), (req, res) => {
   const name = (req.body.name || '').trim();
-  const folder = (req.body.folder || '').trim();
   if (!req.file) {
     return res.status(400).json({ error: 'Файл не был загружен.' });
   }
@@ -111,62 +106,56 @@ app.post('/api/upload', upload.single('logfile'), (req, res) => {
   }
 
   const createdAt = new Date().toISOString();
-  const stmt = db.prepare('INSERT INTO sessions (name, folder, filename, created_at, columns_json, max_json, data_json) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  stmt.run(name, folder, req.file.originalname, createdAt, JSON.stringify(parsed.columns), JSON.stringify(parsed.max), JSON.stringify(parsed.data), function (err) {
+  const stmt = db.prepare('INSERT INTO sessions (name, filename, created_at, columns_json, max_json, data_json) VALUES (?, ?, ?, ?, ?, ?)');
+  stmt.run(name, req.file.originalname, createdAt, JSON.stringify(parsed.columns), JSON.stringify(parsed.max), JSON.stringify(parsed.data), function (err) {
     if (err) {
+      console.error('Error inserting session:', err);
       return res.status(500).json({ error: err.message });
     }
-    res.json({ id: this.lastID, name, folder, filename: req.file.originalname, createdAt, columns: parsed.columns, maxValues: parsed.max });
+    res.json({ id: this.lastID, name, filename: req.file.originalname, createdAt, columns: parsed.columns, maxValues: parsed.max });
   });
   stmt.finalize();
 });
 
 app.get('/api/session/:id', (req, res) => {
   const sessionId = Number(req.params.id);
-  db.get('SELECT id, name, folder, filename, created_at, columns_json, max_json, data_json FROM sessions WHERE id = ?', [sessionId], (err, row) => {
+  db.get('SELECT id, name, filename, created_at, columns_json, max_json, data_json FROM sessions WHERE id = ?', [sessionId], (err, row) => {
     if (err) {
+      console.error('Error fetching session:', err);
       return res.status(500).json({ error: err.message });
     }
     if (!row) {
       return res.status(404).json({ error: 'Запись не найдена.' });
     }
-    let cols = [], maxs = [], dat = [];
-    try { cols = JSON.parse(row.columns_json); } catch(e) {}
-    try { maxs = JSON.parse(row.max_json); } catch(e) {}
-    try { dat = JSON.parse(row.data_json); } catch(e) {}
+    let cols = [];
+    let maxs = [];
+    let data = [];
+    try { cols = JSON.parse(row.columns_json); } catch (e) { cols = []; }
+    try { maxs = JSON.parse(row.max_json); } catch (e) { maxs = []; }
+    try { data = JSON.parse(row.data_json); } catch (e) { data = []; }
     res.json({
       id: row.id,
       name: row.name,
-      folder: row.folder || '',
       filename: row.filename,
       createdAt: row.created_at,
       columns: cols,
       maxValues: maxs,
-      data: dat
+      data: data
     });
   });
 });
 
-// DELETE session by id
 app.delete('/api/session/:id', (req, res) => {
   const sessionId = Number(req.params.id);
   db.run('DELETE FROM sessions WHERE id = ?', [sessionId], function (err) {
     if (err) {
+      console.error('Error deleting session:', err);
       return res.status(500).json({ error: err.message });
     }
     if (this.changes === 0) {
       return res.status(404).json({ error: 'Запись не найдена.' });
     }
     res.json({ success: true, deletedId: sessionId });
-  });
-});
-
-app.put('/api/session/:id/folder', (req, res) => {
-  const sessionId = Number(req.params.id);
-  const folder = (req.body.folder || '').trim();
-  db.run('UPDATE sessions SET folder = ? WHERE id = ?', [folder, sessionId], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
   });
 });
 

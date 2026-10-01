@@ -251,6 +251,135 @@ body {
   color: var(--muted);
 }
 
+/* Presets Bar */
+.presets-section {
+  margin: 16px 0 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.presets-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presets-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.presets-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  transition: all 0.2s ease;
+}
+
+.presets-hint.success {
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.presets-hint.warning {
+  color: #fbbf24;
+}
+
+.presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.preset-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.preset-pill:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.preset-pill.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+}
+
+.preset-apply-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.preset-apply-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  color: #ffffff;
+}
+
+.preset-badge {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.preset-save-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: all 0.15s ease;
+}
+
+.preset-save-btn:hover {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.preset-clear-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 9px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: all 0.15s ease;
+}
+
+.preset-clear-btn:hover {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+}
+
 @media (max-width: 720px) {
   .page-shell {
     padding: 12px;
@@ -260,94 +389,4 @@ body {
   .metric-controls {
     gap: 10px;
   }
-}
-
-/* Presets & Folders Styles */
-.presets-section {
-  margin-top: 20px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-}
-
-.presets-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.presets-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.preset-group {
-  display: flex;
-  background: rgba(15, 18, 32, 0.6);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.preset-apply {
-  background: transparent;
-  border: none;
-  color: var(--text);
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.preset-apply:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.preset-save {
-  background: rgba(255, 255, 255, 0.05);
-  border: none;
-  border-left: 1px solid var(--border);
-  color: var(--text);
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.preset-save:hover {
-  background: rgba(56, 189, 248, 0.2);
-}
-
-.folder-group {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  margin-bottom: 12px;
-  overflow: hidden;
-}
-
-.folder-header {
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  font-weight: 600;
-  color: var(--accent-2);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-}
-
-.folder-header:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-.folder-items {
-  padding: 10px;
-  display: grid;
-  gap: 10px;
-}
-
-.folder-items.collapsed {
-  display: none;
 }
