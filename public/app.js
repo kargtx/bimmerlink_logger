@@ -41,23 +41,76 @@ function renderHistory() {
     return;
   }
 
-  sessions.forEach((session) => {
-    const item = document.createElement('div');
-    item.className = 'history-item';
-    item.innerHTML = `
-      <div>
-        <strong>${session.name}</strong>
-        <div class="muted-text">${session.filename} · ${new Date(session.createdAt).toLocaleString()}</div>
-      </div>
-      <div>
-        <button type="button" class="open-btn">Открыть</button>
-        <button type="button" class="delete-btn">Удалить</button>
-      </div>
-    `;
-    item.querySelector('.open-btn').addEventListener('click', () => loadSession(session.id));
-    item.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
-    historyList.appendChild(item);
+  const datalist = document.getElementById('folderSuggestions');
+  if (datalist) {
+    const uniqueFolders = [...new Set(sessions.map(s => s.folder).filter(f => f))];
+    datalist.innerHTML = uniqueFolders.map(f => `<option value="${f}">`).join('');
+  }
+
+  const folders = {};
+  sessions.forEach(session => {
+    const f = session.folder || 'Без папки';
+    if (!folders[f]) folders[f] = [];
+    folders[f].push(session);
   });
+
+  Object.keys(folders).sort().forEach(fName => {
+    const folderGroup = document.createElement('div');
+    folderGroup.className = 'folder-group';
+    
+    const header = document.createElement('div');
+    header.className = 'folder-header';
+    header.innerHTML = `<span>📂 ${fName} (${folders[fName].length})</span> <span class="folder-toggle">▼</span>`;
+    
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'folder-items';
+    
+    header.addEventListener('click', () => {
+      itemsContainer.classList.toggle('collapsed');
+      header.querySelector('.folder-toggle').textContent = itemsContainer.classList.contains('collapsed') ? '▶' : '▼';
+    });
+
+    folders[fName].forEach(session => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `
+        <div>
+          <strong>${session.name}</strong>
+          <div class="muted-text">${session.filename} · ${new Date(session.createdAt).toLocaleString()}</div>
+        </div>
+        <div>
+          <button type="button" class="open-btn">Открыть</button>
+          <button type="button" class="move-btn" title="Переместить в папку">📁</button>
+          <button type="button" class="delete-btn">Удалить</button>
+        </div>
+      `;
+      item.querySelector('.open-btn').addEventListener('click', () => loadSession(session.id));
+      item.querySelector('.move-btn').addEventListener('click', () => moveSession(session.id, session.folder));
+      item.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
+      itemsContainer.appendChild(item);
+    });
+    
+    folderGroup.appendChild(header);
+    folderGroup.appendChild(itemsContainer);
+    historyList.appendChild(folderGroup);
+  });
+}
+
+async function moveSession(sessionId, currentFolder) {
+  const newFolder = prompt('Введите имя папки (оставьте пустым для "Без папки"):', currentFolder || '');
+  if (newFolder === null) return;
+  try {
+    const res = await fetch(`/api/session/${sessionId}/folder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: newFolder })
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Ошибка перемещения');
+    await fetchSessions();
+  } catch (err) {
+    setMessage(err.message, true);
+  }
 }
 
 function setMessage(text, isError = false) {
@@ -92,6 +145,8 @@ async function loadSession(sessionId) {
     return;
   }
   currentSession = await response.json();
+  const presetsSection = document.getElementById('presetsSection');
+  if (presetsSection) presetsSection.style.display = 'block';
   renderMetricControls();
   renderMaxValues();
   createCharts();
@@ -108,6 +163,8 @@ async function deleteSession(sessionId) {
     // if current session deleted, clear view
     if (currentSession && currentSession.id === sessionId) {
       currentSession = null;
+      const presetsSection = document.getElementById('presetsSection');
+      if (presetsSection) presetsSection.style.display = 'none';
       renderMetricControls();
       renderMaxValues();
       createCharts();
@@ -126,7 +183,7 @@ function renderMetricControls() {
   const columns = currentSession.columns.slice(1);
   metricControls.innerHTML = columns.map((name, index) => `
     <label>
-      <input type="checkbox" value="${index + 1}" ${index < 2 ? 'checked' : ''} />
+      <input type="checkbox" value="${index + 1}" data-name="${name.replace(/"/g, '&quot;')}" ${index < 2 ? 'checked' : ''} />
       ${name}
     </label>
   `).join('');
@@ -311,4 +368,88 @@ if (toggleHistoryBtn && historyListEl) {
   });
 }
 
+function initPresets() {
+  const applyBtns = document.querySelectorAll('.preset-apply');
+  const saveBtns = document.querySelectorAll('.preset-save');
+  
+  applyBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = btn.dataset.index;
+      applyPreset(index);
+    });
+  });
+  
+  saveBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = btn.dataset.index;
+      savePreset(index);
+    });
+  });
+  
+  updatePresetButtons();
+}
+
+function getPresets() {
+  try {
+    return JSON.parse(localStorage.getItem('bimmerlink_presets')) || [[], [], [], [], []];
+  } catch (e) {
+    return [[], [], [], [], []];
+  }
+}
+
+function savePresets(presets) {
+  localStorage.setItem('bimmerlink_presets', JSON.stringify(presets));
+}
+
+function updatePresetButtons() {
+  const presets = getPresets();
+  const applyBtns = document.querySelectorAll('.preset-apply');
+  applyBtns.forEach((btn, index) => {
+    if (presets[index] && presets[index].length > 0) {
+      btn.textContent = `Пресет ${Number(index) + 1} (${presets[index].length})`;
+      btn.style.color = 'var(--accent-2)';
+    } else {
+      btn.textContent = `Пресет ${Number(index) + 1} (пусто)`;
+      btn.style.color = 'var(--text)';
+    }
+  });
+}
+
+function savePreset(index) {
+  if (!currentSession) return;
+  const checkboxes = Array.from(metricControls.querySelectorAll('input[type="checkbox"]:checked'));
+  const selectedNames = checkboxes.map(cb => cb.dataset.name);
+  if (selectedNames.length === 0) {
+    alert('Выберите хотя бы один параметр для сохранения в пресет.');
+    return;
+  }
+  const presets = getPresets();
+  presets[index] = selectedNames;
+  savePresets(presets);
+  updatePresetButtons();
+}
+
+function applyPreset(index) {
+  if (!currentSession) return;
+  const presets = getPresets();
+  const savedNames = presets[index] || [];
+  if (savedNames.length === 0) {
+    alert('Этот пресет пуст. Сначала сохраните в него параметры.');
+    return;
+  }
+  
+  const checkboxes = Array.from(metricControls.querySelectorAll('input[type="checkbox"]'));
+  let matchedAny = false;
+  checkboxes.forEach(cb => {
+    cb.checked = savedNames.includes(cb.dataset.name);
+    if (cb.checked) matchedAny = true;
+  });
+  
+  if (!matchedAny) {
+    alert('Ни один из параметров пресета не найден в этом логе.');
+  }
+  createCharts();
+}
+
+initPresets();
 fetchSessions();

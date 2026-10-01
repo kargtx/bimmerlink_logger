@@ -23,6 +23,11 @@
           <input type="text" name="name" id="sessionName" placeholder="Например, поездка на трассе" required />
         </label>
         <label>
+          Папка (необязательно)
+          <input type="text" name="folder" id="sessionFolder" placeholder="Без папки" list="folderSuggestions" />
+          <datalist id="folderSuggestions"></datalist>
+        </label>
+        <label>
           Выберите CSV лог
           <input type="file" name="logfile" id="logFile" accept=".csv,text/csv" required />
         </label>
@@ -55,6 +60,33 @@
         <span id="zoomDisplay">1.0x</span>
         <button id="zoomIn" type="button" class="zoom-btn">+</button>
       </div>
+
+      <div class="presets-section" id="presetsSection" style="display: none;">
+        <h4>Пресеты параметров</h4>
+        <div class="presets-row">
+          <div class="preset-group">
+            <button type="button" class="preset-apply" data-index="0">Пресет 1</button>
+            <button type="button" class="preset-save" data-index="0" title="Сохранить текущие галочки">💾</button>
+          </div>
+          <div class="preset-group">
+            <button type="button" class="preset-apply" data-index="1">Пресет 2</button>
+            <button type="button" class="preset-save" data-index="1" title="Сохранить текущие галочки">💾</button>
+          </div>
+          <div class="preset-group">
+            <button type="button" class="preset-apply" data-index="2">Пресет 3</button>
+            <button type="button" class="preset-save" data-index="2" title="Сохранить текущие галочки">💾</button>
+          </div>
+          <div class="preset-group">
+            <button type="button" class="preset-apply" data-index="3">Пресет 4</button>
+            <button type="button" class="preset-save" data-index="3" title="Сохранить текущие галочки">💾</button>
+          </div>
+          <div class="preset-group">
+            <button type="button" class="preset-apply" data-index="4">Пресет 5</button>
+            <button type="button" class="preset-save" data-index="4" title="Сохранить текущие галочки">💾</button>
+          </div>
+        </div>
+      </div>
+
       <div id="metricControls" class="metric-controls"></div>
       <div id="chartArea"></div>
       <div id="maxValues" class="max-values"></div>
