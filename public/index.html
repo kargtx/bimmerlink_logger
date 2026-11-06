@@ -48,6 +48,7 @@
       <aside class="archive" id="archive" aria-label="Архив логов">
         <div class="dropzone" id="dropzone">
           <p>Перетащите CSV из BimmerLink сюда или нажмите «Загрузить лог».</p>
+          <p class="dropzone-target" id="dropTarget" hidden></p>
           <input
             type="text"
             id="uploadName"
@@ -56,6 +57,27 @@
             maxlength="120"
           />
         </div>
+        <nav class="folders" aria-label="Папки">
+          <div class="folders-head">
+            <h2>Папки</h2>
+            <button class="btn btn-quiet btn-sm" type="button" id="folderAddBtn">Новая папка</button>
+          </div>
+          <form class="folder-form" id="folderForm" hidden>
+            <input
+              type="text"
+              id="folderName"
+              class="input"
+              placeholder="Название папки"
+              maxlength="80"
+              required
+            />
+            <div class="folder-form-actions">
+              <button class="btn btn-primary btn-sm" type="submit" id="folderSubmit">Создать</button>
+              <button class="btn btn-quiet btn-sm" type="button" id="folderCancel">Отмена</button>
+            </div>
+          </form>
+          <ul class="folder-list" id="folderList"></ul>
+        </nav>
         <div class="archive-tools">
           <input
             type="search"
@@ -105,6 +127,10 @@
               </div>
             </div>
             <p class="log-meta" id="logMeta"></p>
+            <label class="folder-pick">
+              Папка
+              <select id="logFolder" class="input"></select>
+            </label>
             <textarea
               class="notes"
               id="logNotes"

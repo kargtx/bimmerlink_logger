@@ -42,15 +42,20 @@ function createApp({ store, root }) {
   api.post('/logs', upload.single('logfile'), (req, res) => {
     if (!req.file) throw Object.assign(new Error('Файл не был загружен.'), { status: 400 });
     const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-    const log = store.createLog({ buffer: req.file.buffer, filename, name: req.body.name });
+    const log = store.createLog({
+      buffer: req.file.buffer,
+      filename,
+      name: req.body.name,
+      folderId: req.body.folderId
+    });
     res.status(201).json(log);
   });
 
   api.get('/logs/:id', (req, res) => res.json(store.getLog(idParam(req))));
 
   api.patch('/logs/:id', (req, res) => {
-    const { name, notes } = req.body || {};
-    res.json(store.updateLog(idParam(req), { name, notes }));
+    const { name, notes, folderId } = req.body || {};
+    res.json(store.updateLog(idParam(req), { name, notes, folderId }));
   });
 
   api.delete('/logs/:id', (req, res) => {
@@ -82,6 +87,14 @@ function createApp({ store, root }) {
     const id = idParam(req);
     const log = store.getLog(id);
     res.download(store.rawPath(id), log.filename);
+  });
+
+  api.get('/folders', (_req, res) => res.json({ folders: store.folders.list() }));
+  api.post('/folders', (req, res) => res.status(201).json(store.folders.create(req.body || {})));
+  api.patch('/folders/:id', (req, res) => res.json(store.folders.rename(idParam(req), req.body || {})));
+  api.delete('/folders/:id', (req, res) => {
+    store.folders.remove(idParam(req));
+    res.json({ success: true });
   });
 
   api.get('/presets', (_req, res) => res.json({ presets: store.presets.list() }));

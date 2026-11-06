@@ -293,6 +293,142 @@ select.input {
   padding: 24px clamp(var(--space), 3vw, 40px) 48px;
 }
 
+/* ---------- Папки ---------- */
+.btn-sm {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.folders {
+  display: grid;
+  gap: 6px;
+}
+.folders-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.folders-head h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.folder-form {
+  display: grid;
+  gap: 6px;
+}
+.folder-form-actions {
+  display: flex;
+  gap: 6px;
+}
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+.folder-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-sm);
+}
+.folder-row.is-active {
+  background: var(--amber-soft);
+}
+.folder-row.is-drop {
+  outline: 2px dashed var(--amber);
+  outline-offset: -2px;
+}
+.folder-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 14px var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.folder-btn:hover {
+  color: var(--amber);
+}
+.folder-row.is-active .folder-btn {
+  color: var(--amber);
+  font-weight: 600;
+}
+.folder-btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.folder-btn .folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-btn .folder-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.folder-tool {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.folder-tool:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+.folder-tool.is-danger:hover {
+  color: var(--danger);
+}
+.folder-tool svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dropzone-target {
+  color: var(--amber);
+}
+.archive-item[draggable='true'] {
+  cursor: grab;
+}
+.folder-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.folder-pick select.input {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
 /* ---------- Пустой экран ---------- */
 .empty {
   max-width: 520px;

@@ -1,5 +1,5 @@
 // Service worker: статика из кэша (приложение открывается без сети), API — только из сети.
-const VERSION = 'bl-v2.0.0';
+const VERSION = 'bl-v2.1.0';
 const STATIC = [
   '/',
   '/index.html',

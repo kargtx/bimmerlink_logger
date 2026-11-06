@@ -20,8 +20,8 @@ function createStore(db, { rawDir, parsedDir }) {
   const parsedPath = (id) => path.join(parsedDir, `${id}.json.gz`);
 
   const insertLog = db.prepare(`INSERT INTO logs
-    (name, filename, recorded_at, uploaded_at, duration_s, row_count, parser_version, time_label, warnings_json, events_json)
-    VALUES (@name, @filename, @recordedAt, @uploadedAt, @duration, @rowCount, @version, @timeLabel, @warnings, @events)`);
+    (name, filename, recorded_at, uploaded_at, duration_s, row_count, parser_version, time_label, warnings_json, events_json, folder_id)
+    VALUES (@name, @filename, @recordedAt, @uploadedAt, @duration, @rowCount, @version, @timeLabel, @warnings, @events, @folderId)`);
   const updateParsed = db.prepare(`UPDATE logs SET recorded_at = COALESCE(recorded_at, @recordedAt),
     duration_s = @duration, row_count = @rowCount, parser_version = @version, time_label = @timeLabel,
     warnings_json = @warnings, events_json = @events WHERE id = @id`);
@@ -68,7 +68,8 @@ function createStore(db, { rawDir, parsedDir }) {
     cache.delete(id);
   }
 
-  function createLog({ buffer, filename, name }) {
+  function createLog({ buffer, filename, name, folderId = null }) {
+    const folder = normalizeFolderId(folderId);
     const parsed = parseBimmerlinkCsv(buffer, { filename });
     const cleanName = String(name || '').trim() || defaultName(filename, parsed.recordedAt);
     const id = db.transaction(() => {
@@ -82,7 +83,8 @@ function createStore(db, { rawDir, parsedDir }) {
         version: parsed.version,
         timeLabel: parsed.timeLabel,
         warnings: '[]',
-        events: '[]'
+        events: '[]',
+        folderId: folder
       });
       const newId = Number(info.lastInsertRowid);
       fs.writeFileSync(rawPath(newId), buffer);
@@ -102,7 +104,8 @@ function createStore(db, { rawDir, parsedDir }) {
       duration: row.duration_s,
       rowCount: row.row_count,
       notes: row.notes,
-      timeLabel: row.time_label
+      timeLabel: row.time_label,
+      folderId: row.folder_id ?? null
     };
   }
 
@@ -146,8 +149,11 @@ function createStore(db, { rawDir, parsedDir }) {
     };
   }
 
-  function updateLog(id, { name, notes }) {
+  function updateLog(id, { name, notes, folderId }) {
     getLog(id);
+    if (folderId !== undefined) {
+      db.prepare('UPDATE logs SET folder_id = ? WHERE id = ?').run(normalizeFolderId(folderId), id);
+    }
     if (name !== undefined) {
       const clean = String(name).trim();
       if (!clean) {
@@ -220,6 +226,51 @@ function createStore(db, { rawDir, parsedDir }) {
     return moved;
   }
 
+  // ---------- Папки ----------
+  function normalizeFolderId(folderId) {
+    if (folderId === null || folderId === undefined || folderId === '' || folderId === 'null') return null;
+    const id = Number(folderId);
+    if (!Number.isInteger(id) || !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(id)) {
+      throw Object.assign(new Error('Папка не найдена.'), { status: 400 });
+    }
+    return id;
+  }
+
+  function folderName(name) {
+    const clean = String(name || '').trim();
+    if (!clean) throw Object.assign(new Error('Укажите название папки.'), { status: 400 });
+    return clean.slice(0, 80);
+  }
+
+  const folderSelect = `SELECT f.*, (SELECT COUNT(*) FROM logs l WHERE l.folder_id = f.id) AS log_count
+    FROM folders f`;
+  const folderRow = (r) => ({ id: r.id, name: r.name, createdAt: r.created_at, logCount: r.log_count });
+
+  const folders = {
+    list: () => db.prepare(`${folderSelect} ORDER BY f.name COLLATE NOCASE`).all().map(folderRow),
+    get(id) {
+      const row = db.prepare(`${folderSelect} WHERE f.id = ?`).get(id);
+      if (!row) throw new NotFoundError('Папка не найдена.');
+      return folderRow(row);
+    },
+    create({ name }) {
+      const info = db
+        .prepare('INSERT INTO folders (name, created_at) VALUES (?, ?)')
+        .run(folderName(name), new Date().toISOString());
+      return folders.get(Number(info.lastInsertRowid));
+    },
+    rename(id, { name }) {
+      const info = db.prepare('UPDATE folders SET name = ? WHERE id = ?').run(folderName(name), id);
+      if (!info.changes) throw new NotFoundError('Папка не найдена.');
+      return folders.get(id);
+    },
+    /** Удаляет папку; заезды из неё не удаляются, а попадают в «Без папки». */
+    remove(id) {
+      const info = db.prepare('DELETE FROM folders WHERE id = ?').run(id);
+      if (!info.changes) throw new NotFoundError('Папка не найдена.');
+    }
+  };
+
   // ---------- Пресеты ----------
   const presetRow = (r) => ({
     id: r.id,
@@ -272,7 +323,8 @@ function createStore(db, { rawDir, parsedDir }) {
     reparseAll,
     migrateLegacy,
     rawPath,
-    presets
+    presets,
+    folders
   };
 }
 

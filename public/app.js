@@ -26,8 +26,28 @@ const state = {
   data: null, // { key, time, byIdx: Map }
   compareData: null,
   charts: null,
-  eventsExpanded: false
+  eventsExpanded: false,
+  folders: [],
+  folderFilter: loadFolderFilter(), // 'all' | 'none' | id папки
+  folderFormMode: null // null | 'create' | id переименовываемой папки
 };
+
+function loadFolderFilter() {
+  try {
+    const v = localStorage.getItem('bl_folder') || 'all';
+    return v === 'all' || v === 'none' ? v : Number(v) || 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function saveFolderFilter() {
+  try {
+    localStorage.setItem('bl_folder', String(state.folderFilter));
+  } catch {
+    // хранилище недоступно — фильтр просто не запомнится
+  }
+}
 
 // ---------------- URL ----------------
 function readHash() {
@@ -62,16 +82,203 @@ function writeHash() {
 
 // ---------------- Архив ----------------
 async function loadArchive() {
-  state.logs = await api.listLogs();
+  [state.logs, state.folders] = await Promise.all([api.listLogs(), api.listFolders()]);
+  if (typeof state.folderFilter === 'number' && !state.folders.some((f) => f.id === state.folderFilter)) {
+    state.folderFilter = 'all';
+  }
+  renderFolders();
   renderArchive();
   renderCompareSelect();
+  if (state.log) renderLogFolder();
+}
+
+// ---------------- Папки ----------------
+const ICON_FOLDER = 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z';
+const ICON_ALL = 'M4 6h16M4 12h16M4 18h16';
+const ICON_NONE = 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 13h6';
+const ICON_EDIT = 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4';
+const ICON_TRASH = 'M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3';
+
+function icon(d) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+
+function folderLabel(filter) {
+  if (filter === 'all') return 'Все заезды';
+  if (filter === 'none') return 'Без папки';
+  const f = state.folders.find((x) => x.id === filter);
+  return f ? f.name : '';
+}
+
+function setFolderFilter(filter) {
+  state.folderFilter = filter;
+  saveFolderFilter();
+  renderFolders();
+  renderArchive();
+}
+
+function folderTool(title, path, onclick, danger = false) {
+  return h(
+    'button',
+    {
+      class: `folder-tool${danger ? ' is-danger' : ''}`,
+      type: 'button',
+      title,
+      'aria-label': title,
+      onclick
+    },
+    icon(path)
+  );
+}
+
+function renderFolders() {
+  const noneCount = state.logs.filter((l) => l.folderId === null).length;
+  const rows = [
+    { filter: 'all', name: 'Все заезды', count: state.logs.length, path: ICON_ALL },
+    ...state.folders.map((f) => ({ filter: f.id, name: f.name, count: f.logCount, path: ICON_FOLDER })),
+    { filter: 'none', name: 'Без папки', count: noneCount, path: ICON_NONE }
+  ];
+
+  clear($('folderList')).append(
+    ...rows.map((r) => {
+      const active = state.folderFilter === r.filter;
+      const isFolder = typeof r.filter === 'number';
+      const row = h(
+        'li',
+        { class: `folder-row${active ? ' is-active' : ''}` },
+        h(
+          'button',
+          {
+            class: 'folder-btn',
+            type: 'button',
+            'aria-current': active ? 'true' : 'false',
+            onclick: () => setFolderFilter(r.filter)
+          },
+          icon(r.path),
+          h('span', { class: 'folder-name' }, r.name),
+          h('span', { class: 'folder-count' }, r.count)
+        ),
+        active && isFolder
+          ? [
+              folderTool(`Переименовать папку «${r.name}»`, ICON_EDIT, () => openFolderForm(r.filter)),
+              folderTool(`Удалить папку «${r.name}»`, ICON_TRASH, () => deleteFolder(r.filter), true)
+            ]
+          : null
+      );
+      // перетаскивание заезда из списка на папку
+      if (r.filter !== 'all') {
+        row.addEventListener('dragover', (e) => {
+          if (!e.dataTransfer.types.includes('application/x-bl-log')) return;
+          e.preventDefault();
+          row.classList.add('is-drop');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('is-drop'));
+        row.addEventListener('drop', (e) => {
+          const id = Number(e.dataTransfer.getData('application/x-bl-log'));
+          row.classList.remove('is-drop');
+          if (!id) return;
+          e.preventDefault();
+          e.stopPropagation();
+          moveLog(id, r.filter === 'none' ? null : r.filter);
+        });
+      }
+      return row;
+    })
+  );
+
+  const target = $('dropTarget');
+  const inFolder = typeof state.folderFilter === 'number';
+  target.hidden = !inFolder;
+  target.textContent = inFolder ? `Новые логи попадут в папку «${folderLabel(state.folderFilter)}».` : '';
+}
+
+function openFolderForm(mode) {
+  state.folderFormMode = mode;
+  const f = typeof mode === 'number' ? state.folders.find((x) => x.id === mode) : null;
+  $('folderName').value = f ? f.name : '';
+  $('folderSubmit').textContent = f ? 'Переименовать' : 'Создать';
+  $('folderForm').hidden = false;
+  $('folderName').focus();
+  $('folderName').select();
+}
+
+function closeFolderForm() {
+  state.folderFormMode = null;
+  $('folderForm').hidden = true;
+}
+
+async function submitFolderForm(e) {
+  e.preventDefault();
+  const name = $('folderName').value.trim();
+  if (!name) return;
+  try {
+    if (typeof state.folderFormMode === 'number') {
+      await api.renameFolder(state.folderFormMode, name);
+      toast(`Папка переименована: ${name}`);
+    } else {
+      const f = await api.createFolder(name);
+      state.folderFilter = f.id;
+      saveFolderFilter();
+      toast(`Папка «${f.name}» создана.`);
+    }
+    closeFolderForm();
+    await loadArchive();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function deleteFolder(id) {
+  const f = state.folders.find((x) => x.id === id);
+  if (!f) return;
+  const note = f.logCount ? ` Заезды из неё (${f.logCount}) не удалятся, а попадут в «Без папки».` : '';
+  if (!confirm(`Удалить папку «${f.name}»?${note}`)) return;
+  try {
+    await api.deleteFolder(id);
+    state.folderFilter = 'all';
+    saveFolderFilter();
+    if (state.log && state.log.folderId === id) state.log.folderId = null;
+    toast('Папка удалена.');
+    await loadArchive();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function moveLog(id, folderId) {
+  try {
+    const updated = await api.updateLog(id, { folderId });
+    if (state.log && state.log.id === id) state.log.folderId = updated.folderId;
+    await loadArchive();
+    toast(folderId ? `Перенесено в папку «${folderLabel(folderId)}».` : 'Заезд убран из папки.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderLogFolder() {
+  const sel = $('logFolder');
+  clear(sel).append(
+    h('option', { value: '' }, 'Без папки'),
+    ...state.folders.map((f) => h('option', { value: String(f.id) }, f.name))
+  );
+  sel.value = state.log.folderId ? String(state.log.folderId) : '';
 }
 
 function renderArchive() {
   const q = $('archiveSearch').value.trim().toLowerCase();
   const sort = $('archiveSort').value;
+  const ff = state.folderFilter;
   const list = state.logs.filter(
-    (l) => !q || l.name.toLowerCase().includes(q) || l.filename.toLowerCase().includes(q)
+    (l) =>
+      (ff === 'all' || (ff === 'none' ? l.folderId === null : l.folderId === ff)) &&
+      (!q || l.name.toLowerCase().includes(q) || l.filename.toLowerCase().includes(q))
   );
   const key = {
     recorded: (l) => l.recordedAt || l.uploadedAt,
@@ -83,9 +290,13 @@ function renderArchive() {
     return String(key(b)).localeCompare(String(key(a)));
   });
 
-  $('archiveCount').textContent = state.logs.length
-    ? `Заездов: ${state.logs.length}${q ? `, найдено: ${list.length}` : ''}`
-    : 'Архив пуст — загрузите первый лог.';
+  const folderNames = new Map(state.folders.map((f) => [f.id, f.name]));
+  if (!state.logs.length) $('archiveCount').textContent = 'Архив пуст — загрузите первый лог.';
+  else if (!list.length) {
+    $('archiveCount').textContent = q
+      ? 'Ничего не найдено.'
+      : 'В этой папке пока пусто. Загрузите лог или перетащите сюда заезд из «Все заезды».';
+  } else $('archiveCount').textContent = `${folderLabel(ff)}: ${list.length}`;
 
   clear($('archiveList')).append(
     ...list.map((l) =>
@@ -97,14 +308,25 @@ function renderArchive() {
           {
             class: 'archive-item',
             type: 'button',
+            draggable: 'true',
+            title: 'Перетащите на папку, чтобы перенести',
             'aria-current': state.log && state.log.id === l.id ? 'true' : 'false',
+            ondragstart: (e) => {
+              e.dataTransfer.setData('application/x-bl-log', String(l.id));
+              e.dataTransfer.effectAllowed = 'move';
+            },
             onclick: () => {
               closeArchive();
               openLog(l.id);
             }
           },
           h('strong', {}, l.name),
-          h('span', {}, `${fmtDate(l.recordedAt || l.uploadedAt)}, ${fmtDuration(l.duration)}`)
+          h(
+            'span',
+            {},
+            `${fmtDate(l.recordedAt || l.uploadedAt)}, ${fmtDuration(l.duration)}`,
+            ff === 'all' && l.folderId ? `, ${folderNames.get(l.folderId) || ''}` : ''
+          )
         )
       )
     )
@@ -131,7 +353,8 @@ async function uploadFile(file) {
   }
   toast(`Загружаю ${file.name}…`);
   try {
-    const log = await api.uploadLog(file, $('uploadName').value);
+    const folderId = typeof state.folderFilter === 'number' ? state.folderFilter : null;
+    const log = await api.uploadLog(file, $('uploadName').value, folderId);
     $('uploadName').value = '';
     toast(`Загружено: ${log.name}`);
     await loadArchive();
@@ -229,6 +452,7 @@ function renderHead() {
     `, ${log.rowCount} строк, ${log.channels.length} параметров, файл ${log.filename}`
   );
   $('logNotes').value = log.notes || '';
+  renderLogFolder();
   $('rawLink').href = api.rawUrl(log.id);
   $('rawLink').setAttribute('download', log.filename);
   const w = $('logWarnings');
@@ -730,6 +954,7 @@ function bind() {
   const dz = $('dropzone');
   for (const target of [dz, document.body]) {
     target.addEventListener('dragover', (e) => {
+      if (!e.dataTransfer.types.includes('Files')) return;
       e.preventDefault();
       dz.classList.add('is-over');
     });
@@ -737,6 +962,7 @@ function bind() {
       if (e.target === target) dz.classList.remove('is-over');
     });
     target.addEventListener('drop', (e) => {
+      if (!e.dataTransfer.files.length) return;
       e.preventDefault();
       dz.classList.remove('is-over');
       uploadFile(e.dataTransfer.files[0]);
@@ -744,6 +970,13 @@ function bind() {
   }
 
   $('archiveSearch').addEventListener('input', renderArchive);
+  $('folderAddBtn').addEventListener('click', () => openFolderForm('create'));
+  $('folderCancel').addEventListener('click', closeFolderForm);
+  $('folderForm').addEventListener('submit', submitFolderForm);
+  $('folderName').addEventListener('keydown', (e) => e.key === 'Escape' && closeFolderForm());
+  $('logFolder').addEventListener('change', (e) => {
+    if (state.log) moveLog(state.log.id, e.target.value ? Number(e.target.value) : null);
+  });
   $('archiveSort').addEventListener('change', renderArchive);
   $('archiveToggle').addEventListener('click', () =>
     $('archive').classList.contains('is-open') ? closeArchive() : openArchive()

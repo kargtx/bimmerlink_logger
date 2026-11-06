@@ -1,6 +1,6 @@
 {
   "name": "bimmerlink-logger-web",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Веб-приложение для просмотра и анализа логов BimmerLink. Сделано для BMW102.",
   "main": "server.js",

@@ -45,6 +45,16 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  `,
+  // 2: папки
+  `
+  CREATE TABLE folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  ALTER TABLE logs ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL;
+  CREATE INDEX idx_logs_folder ON logs(folder_id);
   `
 ];
 

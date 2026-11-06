@@ -151,3 +151,64 @@ test('перенос записей из старой таблицы sessions', 
     await ctx.close();
   }
 });
+
+test('папки: создание, перенос заезда, фильтр, удаление', async () => {
+  const ctx = await setup();
+  try {
+    const json = { 'content-type': 'application/json' };
+    const folder = await (
+      await fetch(`${ctx.base}/api/folders`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Трек' })
+      })
+    ).json();
+    assert.equal(folder.name, 'Трек');
+    assert.equal(folder.logCount, 0);
+
+    const form = new FormData();
+    form.append('folderId', String(folder.id));
+    form.append('logfile', new Blob([fs.readFileSync(FIXTURE)]), path.basename(FIXTURE));
+    const log = await (await fetch(`${ctx.base}/api/logs`, { method: 'POST', body: form })).json();
+    assert.equal(log.folderId, folder.id);
+
+    const [listed] = (await (await fetch(`${ctx.base}/api/folders`)).json()).folders;
+    assert.equal(listed.logCount, 1);
+
+    const renamed = await (
+      await fetch(`${ctx.base}/api/folders/${folder.id}`, {
+        method: 'PATCH',
+        headers: json,
+        body: JSON.stringify({ name: 'Трек Уфа' })
+      })
+    ).json();
+    assert.equal(renamed.name, 'Трек Уфа');
+
+    const bad = await fetch(`${ctx.base}/api/logs/${log.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ folderId: 999 })
+    });
+    assert.equal(bad.status, 400);
+
+    const moved = await (
+      await fetch(`${ctx.base}/api/logs/${log.id}`, {
+        method: 'PATCH',
+        headers: json,
+        body: JSON.stringify({ folderId: null })
+      })
+    ).json();
+    assert.equal(moved.folderId, null);
+
+    await fetch(`${ctx.base}/api/logs/${log.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ folderId: folder.id })
+    });
+    assert.equal((await fetch(`${ctx.base}/api/folders/${folder.id}`, { method: 'DELETE' })).status, 200);
+    const after = await (await fetch(`${ctx.base}/api/logs/${log.id}`)).json();
+    assert.equal(after.folderId, null, 'заезд остаётся, но без папки');
+  } finally {
+    await ctx.close();
+  }
+});

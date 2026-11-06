@@ -16,9 +16,10 @@ const json = (method, data) => ({
 export const api = {
   listLogs: () => request('/api/logs').then((r) => r.logs),
   getLog: (id) => request(`/api/logs/${id}`),
-  uploadLog(file, name) {
+  uploadLog(file, name, folderId) {
     const form = new FormData();
     form.append('name', name || '');
+    if (folderId) form.append('folderId', String(folderId));
     form.append('logfile', file, file.name);
     return request('/api/logs', { method: 'POST', body: form });
   },
@@ -31,6 +32,10 @@ export const api = {
     return request(`/api/logs/${id}/data?${q}`);
   },
   rawUrl: (id) => `/api/logs/${id}/raw`,
+  listFolders: () => request('/api/folders').then((r) => r.folders),
+  createFolder: (name) => request('/api/folders', json('POST', { name })),
+  renameFolder: (id, name) => request(`/api/folders/${id}`, json('PATCH', { name })),
+  deleteFolder: (id) => request(`/api/folders/${id}`, { method: 'DELETE' }),
   listPresets: () => request('/api/presets').then((r) => r.presets),
   createPreset: (name, channels) => request('/api/presets', json('POST', { name, channels })),
   deletePreset: (id) => request(`/api/presets/${id}`, { method: 'DELETE' })
