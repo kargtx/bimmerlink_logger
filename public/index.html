@@ -1,75 +1,210 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Bimmerlink Logger</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <main class="page-shell">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#18212c" />
+    <meta name="description" content="Просмотр и анализ логов BimmerLink. Сделано для BMW102." />
+    <title>Bimmerlink Logger · BMW102</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/vendor/fonts/golos-text/400.css" />
+    <link rel="stylesheet" href="/vendor/fonts/golos-text/600.css" />
+    <link rel="stylesheet" href="/vendor/fonts/fira-sans-condensed/500.css" />
+    <link rel="stylesheet" href="/vendor/fonts/fira-sans-condensed/600.css" />
+    <link rel="stylesheet" href="/vendor/uplot/uPlot.min.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
     <header class="topbar">
-      <div>
-        <h1>Bimmerlink Logger</h1>
-        <p>Загрузите лог-файл CSV, посмотрите графики и максимальные значения.</p>
-      </div>
+      <button
+        class="icon-btn archive-toggle"
+        id="archiveToggle"
+        type="button"
+        aria-controls="archive"
+        aria-expanded="false"
+        title="Архив"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <span class="visually-hidden">Архив</span>
+      </button>
+      <a class="brand" href="/" aria-label="Bimmerlink Logger, на главную">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M5 23a11 11 0 1 1 22 0" />
+          <path class="needle" d="M16 23 23 12" />
+        </svg>
+        <span class="brand-name">Bimmerlink Logger</span>
+        <span class="brand-club" title="Сделано для BMW102">BMW102</span>
+      </a>
+      <label class="btn btn-primary upload-btn">
+        <input type="file" id="fileInput" accept=".csv,text/csv" hidden />
+        Загрузить лог
+      </label>
     </header>
 
-    <section class="card upload-card">
-      <form id="uploadForm" class="upload-form">
-        <label>
-          Имя записи
-          <input type="text" name="name" id="sessionName" placeholder="Например, поездка на трассе" required />
-        </label>
-        <label>
-          Выберите CSV лог
-          <input type="file" name="logfile" id="logFile" accept=".csv,text/csv" required />
-        </label>
-        <button type="submit">Загрузить в историю</button>
-      </form>
-      <div id="uploadMessage" class="message"></div>
-    </section>
-
-    <section class="card history-card">
-      <div class="section-header">
-        <h2>Архив записей</h2>
-        <div>
-          <button id="toggleHistory" type="button">Показать/скрыть</button>
-          <span id="historyCount"></span>
+    <div class="layout">
+      <aside class="archive" id="archive" aria-label="Архив логов">
+        <div class="dropzone" id="dropzone">
+          <p>Перетащите CSV из BimmerLink сюда или нажмите «Загрузить лог».</p>
+          <input
+            type="text"
+            id="uploadName"
+            class="input"
+            placeholder="Название заезда (необязательно)"
+            maxlength="120"
+          />
         </div>
-      </div>
-      <div id="historyList" class="history-list collapsed"></div>
-    </section>
-
-    <section class="card chart-card">
-      <div class="section-header">
-        <h2>График</h2>
-        <div class="toggle-row">
-          <label><input type="radio" name="displayMode" value="together" checked /> Вместе</label>
-          <label><input type="radio" name="displayMode" value="separate" /> Раздельно</label>
+        <div class="archive-tools">
+          <input
+            type="search"
+            id="archiveSearch"
+            class="input"
+            placeholder="Поиск по названию"
+            aria-label="Поиск по архиву"
+          />
+          <select id="archiveSort" class="input" aria-label="Сортировка">
+            <option value="recorded">Сначала новые заезды</option>
+            <option value="uploaded">Сначала новые загрузки</option>
+            <option value="name">По названию</option>
+            <option value="duration">Самые длинные</option>
+          </select>
         </div>
-      </div>
-      <div class="zoom-controls">
-        <button id="zoomOut" type="button" class="zoom-btn">−</button>
-        <span id="zoomDisplay">1.0x</span>
-        <button id="zoomIn" type="button" class="zoom-btn">+</button>
-      </div>
+        <p class="archive-count" id="archiveCount"></p>
+        <ul class="archive-list" id="archiveList"></ul>
+        <footer class="archive-footer">Сделано для BMW102</footer>
+      </aside>
+      <div class="scrim" id="scrim" hidden></div>
 
-      <div class="presets-section" id="presetsSection">
-        <div class="presets-header">
-          <span class="presets-title">⚡ Пресеты параметров:</span>
-          <span class="presets-hint" id="presetStatusHint">Выберите галочки параметров и нажмите 💾 для сохранения</span>
-        </div>
-        <div class="presets-row" id="presetsRow"></div>
-      </div>
+      <main class="workspace" id="workspace">
+        <section class="empty" id="emptyState">
+          <svg class="empty-gauge" viewBox="0 0 120 70" aria-hidden="true">
+            <path d="M10 64a50 50 0 1 1 100 0" />
+            <path class="needle" d="M60 64 32 30" />
+          </svg>
+          <h1>Откройте заезд из архива</h1>
+          <p>Или загрузите новый CSV, записанный в BimmerLink. Графики, пики и разгоны появятся здесь.</p>
+        </section>
 
-      <div id="metricControls" class="metric-controls"></div>
-      <div id="chartArea"></div>
-      <div id="maxValues" class="max-values"></div>
-    </section>
-  </main>
+        <section class="log" id="logView" hidden>
+          <header class="log-head">
+            <div class="log-title-row">
+              <h1
+                class="log-title"
+                id="logTitle"
+                contenteditable="plaintext-only"
+                spellcheck="false"
+                title="Нажмите, чтобы переименовать"
+              ></h1>
+              <div class="log-actions">
+                <button class="btn" type="button" id="copyLinkBtn">Скопировать ссылку</button>
+                <button class="btn" type="button" id="pngBtn">Сохранить PNG</button>
+                <a class="btn" id="rawLink" href="#" download>Исходный CSV</a>
+                <button class="btn btn-danger" type="button" id="deleteBtn">Удалить</button>
+              </div>
+            </div>
+            <p class="log-meta" id="logMeta"></p>
+            <textarea
+              class="notes"
+              id="logNotes"
+              rows="1"
+              placeholder="Заметка: трасса, погода, что меняли…"
+            ></textarea>
+            <p class="log-warnings" id="logWarnings" hidden></p>
+          </header>
 
-  <script src="app.js"></script>
-</body>
+          <div class="peaks" id="peaks" aria-label="Пики выбранных параметров"></div>
+
+          <div class="toolbar">
+            <div class="segmented" role="radiogroup" aria-label="Режим графика">
+              <label><input type="radio" name="mode" value="together" checked /><span>Вместе</span></label>
+              <label><input type="radio" name="mode" value="separate" /><span>Раздельно</span></label>
+              <label><input type="radio" name="mode" value="normalized" /><span>В процентах</span></label>
+            </div>
+            <div class="toolbar-group">
+              <select id="presetSelect" class="input" aria-label="Пресеты">
+                <option value="">Пресеты…</option>
+              </select>
+              <button
+                class="btn"
+                type="button"
+                id="presetSaveBtn"
+                title="Сохранить выбранные параметры как пресет"
+              >
+                Сохранить пресет
+              </button>
+              <button class="btn btn-quiet" type="button" id="presetDeleteBtn" hidden>Удалить пресет</button>
+            </div>
+            <div class="toolbar-group">
+              <select id="compareSelect" class="input" aria-label="Сравнить с другим заездом">
+                <option value="">Сравнить с…</option>
+              </select>
+            </div>
+          </div>
+          <form class="preset-form" id="presetForm" hidden>
+            <input
+              type="text"
+              id="presetName"
+              class="input"
+              placeholder="Название пресета"
+              maxlength="80"
+              required
+            />
+            <button class="btn btn-primary" type="submit">Сохранить</button>
+            <button class="btn btn-quiet" type="button" id="presetCancel">Отмена</button>
+          </form>
+
+          <details class="channels" id="channelsBox" open>
+            <summary>Параметры <span id="channelsCount"></span></summary>
+            <div id="channelGroups" class="channel-groups"></div>
+          </details>
+
+          <div class="chart-shell">
+            <div class="chart-status" id="chartStatus" aria-live="polite"></div>
+            <div id="charts" class="charts"></div>
+            <div class="range" id="rangeBox">
+              <div class="range-track">
+                <input type="range" id="rangeFrom" min="0" max="1000" value="0" aria-label="Начало отрезка" />
+                <input type="range" id="rangeTo" min="0" max="1000" value="1000" aria-label="Конец отрезка" />
+              </div>
+              <div class="range-row">
+                <span id="rangeLabel"></span>
+                <button class="btn btn-quiet" type="button" id="rangeReset">Весь заезд</button>
+              </div>
+              <p class="hint">
+                Выделите участок мышью или разведите два пальца на графике. Двойной клик — весь заезд.
+              </p>
+            </div>
+          </div>
+
+          <div class="details-grid">
+            <section class="panel">
+              <h2>Статистика</h2>
+              <div class="table-wrap">
+                <table class="stats" id="statsTable">
+                  <thead>
+                    <tr>
+                      <th scope="col">Параметр</th>
+                      <th scope="col">Мин</th>
+                      <th scope="col">Сред</th>
+                      <th scope="col">Макс</th>
+                      <th scope="col">Время макс.</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="panel">
+              <h2>События</h2>
+              <ul class="events" id="eventsList"></ul>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
 </html>

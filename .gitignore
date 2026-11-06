@@ -1,4 +1,7 @@
 node_modules/
 data/
+backups/
 logs.db
 *.log
+.env
+coverage/
